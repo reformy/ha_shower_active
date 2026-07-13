@@ -13,8 +13,8 @@ The "decline to turn off" logic means the sensor stays ON while humidity is stil
 
 ## Sensors created
 
-For each configured shower:
-- `binary_sensor.<shower_name>` — ON while that shower is in use
+For each configured shower (e.g. named "Master"):
+- `binary_sensor.master_shower_active` ("Master Shower Active") — ON while that shower is in use
 
 Plus one aggregate:
 - `binary_sensor.any_shower_active` — ON if **any** configured shower is active
@@ -40,7 +40,7 @@ Plus one aggregate:
    - **Threshold**: humidity % to activate on (default `63`)
    - **Decline readings**: how many consecutive drops before turning off (default `2`)
 
-You can add multiple showers and return to Options any time to add/remove.
+You can add multiple showers and return to Options any time to add, edit, or remove them. Editing keeps the entity and its history — only the settings change.
 
 ## Attributes
 

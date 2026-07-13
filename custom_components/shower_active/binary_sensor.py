@@ -90,7 +90,8 @@ class ShowerHumiditySensor(BinarySensorEntity):
         decline_count: int,
     ) -> None:
         self._attr_unique_id = unique_id
-        self._attr_name = name
+        self.shower_name = name
+        self._attr_name = f"{name} Shower Active"
         self._humidity_sensor = humidity_sensor
         self._threshold = threshold
         self._decline_count = decline_count
@@ -223,7 +224,7 @@ class AnyShowerActiveSensor(BinarySensorEntity):
     def extra_state_attributes(self):
         return {
             "active_showers": [
-                s.name for s in self._shower_sensors if s.is_on
+                s.shower_name for s in self._shower_sensors if s.is_on
             ],
-            "monitored_showers": [s.name for s in self._shower_sensors],
+            "monitored_showers": [s.shower_name for s in self._shower_sensors],
         }
