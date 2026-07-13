@@ -32,15 +32,43 @@ Plus one aggregate:
 
 ## Configuration
 
-1. Go to **Settings → Devices & Services → Helpers → Create Helper → Shower Active** (on older HA versions: **Add Integration → Shower Active**)
-2. Give it a name and create the entry
-3. Click **Configure** (Options) to add each shower:
-   - **Name**: e.g. `Kids Shower`
-   - **Humidity sensor**: pick from your entities (filtered to `humidity` device class)
-   - **Threshold**: humidity % to activate on (default `63`)
-   - **Decline readings**: how many consecutive drops before turning off (default `2`)
+### Create the entry
 
-You can add multiple showers and return to Options any time to add, edit, or remove them. Editing keeps the entity and its history — only the settings change.
+1. Go to **Settings → Devices & Services → Helpers** tab → **+ Create Helper** → search for **Shower Active**
+   (on older HA versions it appears under the **Integrations** tab via **+ Add Integration** instead)
+2. Give the entry a title (the default "Shower Active" is fine) and create it
+
+This immediately creates the aggregate `binary_sensor.any_shower_active` — it stays off until you add showers.
+
+### Open the shower manager
+
+This is a helper-type integration, so it has **no card on the Integrations tab**. To manage showers:
+
+1. Go to **Settings → Devices & Services → Helpers**
+2. Click the **Any Shower Active** row
+
+The Shower Active menu opens with four options: **Add a shower**, **Edit a shower**, **Remove a shower**, and **Save and finish**.
+
+Nothing is applied until you choose **Save and finish** — the integration then reloads itself, so changes take effect immediately with no HA restart.
+
+### Add a shower
+
+Choose **Add a shower** and fill in:
+
+- **Name**: e.g. `Master` — creates `binary_sensor.master_shower_active` ("Master Shower Active")
+- **Humidity sensor**: pick from your entities (filtered to `humidity` device class)
+- **Threshold**: humidity % to activate on (default `63`)
+- **Decline readings**: how many consecutive drops before turning off (default `2`)
+
+Repeat for as many showers as you like, then **Save and finish**.
+
+### Edit a shower
+
+Choose **Edit a shower**, pick the shower, and the form opens pre-filled with its current settings — handy for tuning the threshold per bathroom. The entity and its history are preserved; only the settings change.
+
+### Remove a shower
+
+Choose **Remove a shower** and pick the shower. Its entity is deleted on save (recorded history remains in the database until purged, but the entity is gone). The aggregate sensor always stays.
 
 ## Attributes
 

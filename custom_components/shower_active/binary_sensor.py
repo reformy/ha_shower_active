@@ -171,6 +171,10 @@ class ShowerHumiditySensor(BinarySensorEntity):
         if self.aggregate is not None:
             self.aggregate.async_update_from_children()
 
+    @property
+    def icon(self) -> str:
+        return "mdi:shower" if self.is_on else "mdi:shower-head"
+
     def _is_declining(self) -> bool:
         """Return True if the last `decline_count` readings are all lower than the one before them."""
         readings = list(self._recent)
@@ -219,6 +223,10 @@ class AnyShowerActiveSensor(BinarySensorEntity):
         # Guard against a child firing before this entity is registered
         if self.entity_id:
             self.async_write_ha_state()
+
+    @property
+    def icon(self) -> str:
+        return "mdi:shower" if self.is_on else "mdi:shower-head"
 
     @property
     def extra_state_attributes(self):
