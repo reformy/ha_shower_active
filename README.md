@@ -32,7 +32,7 @@ Plus one aggregate:
 
 ## Configuration
 
-1. Go to **Settings → Devices & Services → Add Integration → Shower Active**
+1. Go to **Settings → Devices & Services → Helpers → Create Helper → Shower Active** (on older HA versions: **Add Integration → Shower Active**)
 2. Give it a name and create the entry
 3. Click **Configure** (Options) to add each shower:
    - **Name**: e.g. `Kids Shower`

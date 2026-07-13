@@ -1,6 +1,7 @@
 DOMAIN = "shower_active"
 
 CONF_SHOWERS = "showers"
+CONF_ID = "id"
 CONF_SENSOR = "sensor"
 CONF_NAME = "name"
 CONF_THRESHOLD = "threshold"

@@ -1,12 +1,13 @@
 {
   "domain": "shower_active",
   "name": "Shower Active",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "documentation": "https://github.com/reformy/ha_shower_active",
   "issue_tracker": "https://github.com/reformy/ha_shower_active/issues",
   "dependencies": [],
   "codeowners": ["@reformy"],
   "requirements": [],
   "iot_class": "local_push",
-  "config_flow": true
+  "config_flow": true,
+  "integration_type": "helper"
 }

@@ -1,6 +1,8 @@
 """Config flow for Shower Active."""
 from __future__ import annotations
 
+import uuid
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import callback
@@ -9,6 +11,7 @@ from homeassistant.helpers import selector
 from .const import (
     DOMAIN,
     CONF_SHOWERS,
+    CONF_ID,
     CONF_SENSOR,
     CONF_NAME,
     CONF_THRESHOLD,
@@ -37,9 +40,6 @@ class ShowerActiveConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     vol.Required("title", default="Shower Active"): str,
                 }
             ),
-            description_placeholders={
-                "note": "After creating the entry, add showers via Options."
-            },
         )
 
     @staticmethod
@@ -52,11 +52,9 @@ class ShowerActiveOptionsFlow(config_entries.OptionsFlow):
     """Handle options for Shower Active (add/remove shower sensors)."""
 
     def __init__(self, config_entry):
-        self._config_entry = config_entry
         self._showers = list(
             config_entry.options.get(CONF_SHOWERS, [])
         )
-        self._new_shower = {}
 
     async def async_step_init(self, user_input=None):
         """Show current showers and allow adding/removing."""
@@ -77,6 +75,7 @@ class ShowerActiveOptionsFlow(config_entries.OptionsFlow):
     async def async_step_add_shower(self, user_input=None):
         if user_input is not None:
             self._showers.append({
+                CONF_ID: uuid.uuid4().hex,
                 CONF_NAME: user_input[CONF_NAME],
                 CONF_SENSOR: user_input[CONF_SENSOR],
                 CONF_THRESHOLD: user_input[CONF_THRESHOLD],
@@ -103,18 +102,28 @@ class ShowerActiveOptionsFlow(config_entries.OptionsFlow):
             return await self.async_step_menu()
 
         if user_input is not None:
-            name_to_remove = user_input.get("shower")
-            self._showers = [s for s in self._showers if s[CONF_NAME] != name_to_remove]
+            id_to_remove = user_input.get("shower")
+            self._showers = [
+                s for s in self._showers if self._shower_key(s) != id_to_remove
+            ]
             return await self.async_step_menu()
 
         return self.async_show_form(
             step_id="remove_shower",
             data_schema=vol.Schema({
                 vol.Required("shower"): vol.In(
-                    {s[CONF_NAME]: s[CONF_NAME] for s in self._showers}
+                    {
+                        self._shower_key(s): f"{s[CONF_NAME]} ({s[CONF_SENSOR]})"
+                        for s in self._showers
+                    }
                 ),
             }),
         )
+
+    @staticmethod
+    def _shower_key(shower: dict) -> str:
+        # Showers added before per-shower ids existed fall back to name
+        return shower.get(CONF_ID, shower[CONF_NAME])
 
     async def async_step_finish(self, user_input=None):
         return self.async_create_entry(

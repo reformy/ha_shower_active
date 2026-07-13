@@ -14,14 +14,14 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
-    DOMAIN,
-    CONF_SHOWERS,
-    CONF_SENSOR,
-    CONF_NAME,
-    CONF_THRESHOLD,
     CONF_DECLINE_COUNT,
-    DEFAULT_THRESHOLD,
+    CONF_ID,
+    CONF_NAME,
+    CONF_SENSOR,
+    CONF_SHOWERS,
+    CONF_THRESHOLD,
     DEFAULT_DECLINE_COUNT,
+    DEFAULT_THRESHOLD,
     SENSOR_AGGREGATE,
 )
 
@@ -37,9 +37,10 @@ async def async_setup_entry(
 
     individual: list[ShowerHumiditySensor] = []
     for shower_conf in showers:
+        # Showers added before per-shower ids existed fall back to the source entity_id
+        shower_id = shower_conf.get(CONF_ID, shower_conf[CONF_SENSOR])
         sensor = ShowerHumiditySensor(
-            hass=hass,
-            unique_id=f"{entry.entry_id}_{shower_conf[CONF_SENSOR]}",
+            unique_id=f"{entry.entry_id}_{shower_id}",
             name=shower_conf[CONF_NAME],
             humidity_sensor=shower_conf[CONF_SENSOR],
             threshold=shower_conf.get(CONF_THRESHOLD, DEFAULT_THRESHOLD),
@@ -48,12 +49,13 @@ async def async_setup_entry(
         individual.append(sensor)
 
     aggregate = AnyShowerActiveSensor(
-        hass=hass,
         unique_id=f"{entry.entry_id}_{SENSOR_AGGREGATE}",
         shower_sensors=individual,
     )
+    for sensor in individual:
+        sensor.aggregate = aggregate
 
-    async_add_entities(individual + [aggregate], update_before_add=True)
+    async_add_entities(individual + [aggregate])
 
     # Reload sensors when options change
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -67,31 +69,35 @@ class ShowerHumiditySensor(BinarySensorEntity):
     """
     Binary sensor that is ON when a shower is in use.
 
-    Turn ON logic:  humidity rises above `threshold`
+    Turn ON logic:  humidity rises above `threshold` while armed
     Turn OFF logic: humidity starts declining (N consecutive lower readings
                     while already ON), regardless of absolute value.
+
+    After turning OFF, the sensor is re-armed only once humidity settles
+    back to or below the threshold, so the post-shower decay (still above
+    the threshold) cannot immediately switch it back ON.
     """
 
-    _attr_device_class = BinarySensorDeviceClass.MOISTURE
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
     _attr_should_poll = False
 
     def __init__(
         self,
-        hass: HomeAssistant,
         unique_id: str,
         name: str,
         humidity_sensor: str,
         threshold: float,
         decline_count: int,
     ) -> None:
-        self.hass = hass
         self._attr_unique_id = unique_id
         self._attr_name = name
         self._humidity_sensor = humidity_sensor
         self._threshold = threshold
         self._decline_count = decline_count
+        self.aggregate: AnyShowerActiveSensor | None = None
 
         self._attr_is_on = False
+        self._armed = True
         self._last_humidity: float | None = None
         # Rolling window of recent readings to detect consistent decline
         self._recent: deque[float] = deque(maxlen=decline_count + 1)
@@ -129,18 +135,23 @@ class ShowerHumiditySensor(BinarySensorEntity):
             return
 
         self._recent.append(humidity)
-        prev = self._last_humidity
         self._last_humidity = humidity
 
+        # Re-arm once humidity has settled back to/below the threshold
+        if humidity <= self._threshold:
+            self._armed = True
+
         if not self._attr_is_on:
-            # Turn ON when humidity crosses threshold
-            if humidity > self._threshold:
+            # Turn ON when humidity crosses threshold while armed
+            if self._armed and humidity > self._threshold:
                 _LOGGER.debug(
                     "%s: humidity %.1f > threshold %.1f → shower ON",
                     self._attr_name, humidity, self._threshold,
                 )
                 self._attr_is_on = True
+                self._armed = False
                 self.async_write_ha_state()
+                self._notify_aggregate()
         else:
             # Turn OFF when we see consistent decline
             if self._is_declining():
@@ -150,9 +161,14 @@ class ShowerHumiditySensor(BinarySensorEntity):
                 )
                 self._attr_is_on = False
                 self._recent.clear()
-                if self._last_humidity is not None:
-                    self._recent.append(self._last_humidity)
+                self._recent.append(humidity)
                 self.async_write_ha_state()
+                self._notify_aggregate()
+
+    @callback
+    def _notify_aggregate(self) -> None:
+        if self.aggregate is not None:
+            self.aggregate.async_update_from_children()
 
     def _is_declining(self) -> bool:
         """Return True if the last `decline_count` readings are all lower than the one before them."""
@@ -176,65 +192,32 @@ class ShowerHumiditySensor(BinarySensorEntity):
 class AnyShowerActiveSensor(BinarySensorEntity):
     """Aggregate sensor: ON if any shower sensor is ON."""
 
-    _attr_device_class = BinarySensorDeviceClass.MOISTURE
+    _attr_device_class = BinarySensorDeviceClass.RUNNING
     _attr_should_poll = False
 
     def __init__(
         self,
-        hass: HomeAssistant,
         unique_id: str,
         shower_sensors: list[ShowerHumiditySensor],
     ) -> None:
-        self.hass = hass
         self._attr_unique_id = unique_id
         self._attr_name = "Any Shower Active"
         self._shower_sensors = shower_sensors
         self._attr_is_on = False
-        self._unsubs = []
 
     async def async_added_to_hass(self) -> None:
-        # Track state changes of the individual shower sensors
-        sensor_entity_ids = [s.entity_id for s in self._shower_sensors if s.entity_id]
+        self._attr_is_on = any(s.is_on for s in self._shower_sensors)
 
-        @callback
-        def _update(_event=None):
-            self._attr_is_on = any(s.is_on for s in self._shower_sensors)
+    @callback
+    def async_update_from_children(self) -> None:
+        """Recompute state; called by individual shower sensors after they change."""
+        is_on = any(s.is_on for s in self._shower_sensors)
+        if is_on == self._attr_is_on:
+            return
+        self._attr_is_on = is_on
+        # Guard against a child firing before this entity is registered
+        if self.entity_id:
             self.async_write_ha_state()
-
-        if sensor_entity_ids:
-            self._unsubs.append(
-                async_track_state_change_event(
-                    self.hass, sensor_entity_ids, _update
-                )
-            )
-
-        # Also update whenever a shower sensor writes state (they share hass)
-        # We register a listener after a tick so entity_ids are registered
-        self.hass.async_create_task(self._delayed_subscribe())
-
-    async def _delayed_subscribe(self):
-        """Subscribe after individual sensors have registered their entity_ids."""
-        import asyncio
-        await asyncio.sleep(0)
-        sensor_entity_ids = [s.entity_id for s in self._shower_sensors if s.entity_id]
-        if sensor_entity_ids:
-            @callback
-            def _update(event=None):
-                self._attr_is_on = any(s.is_on for s in self._shower_sensors)
-                self.async_write_ha_state()
-
-            for unsub in self._unsubs:
-                unsub()
-            self._unsubs = [
-                async_track_state_change_event(
-                    self.hass, sensor_entity_ids, _update
-                )
-            ]
-            _update()
-
-    async def async_will_remove_from_hass(self) -> None:
-        for unsub in self._unsubs:
-            unsub()
 
     @property
     def extra_state_attributes(self):
