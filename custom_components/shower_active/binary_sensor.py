@@ -15,12 +15,14 @@ from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import (
     CONF_DECLINE_COUNT,
+    CONF_HYSTERESIS,
     CONF_ID,
     CONF_NAME,
     CONF_SENSOR,
     CONF_SHOWERS,
     CONF_THRESHOLD,
     DEFAULT_DECLINE_COUNT,
+    DEFAULT_HYSTERESIS,
     DEFAULT_THRESHOLD,
     SENSOR_AGGREGATE,
 )
@@ -45,6 +47,7 @@ async def async_setup_entry(
             humidity_sensor=shower_conf[CONF_SENSOR],
             threshold=shower_conf.get(CONF_THRESHOLD, DEFAULT_THRESHOLD),
             decline_count=shower_conf.get(CONF_DECLINE_COUNT, DEFAULT_DECLINE_COUNT),
+            hysteresis=shower_conf.get(CONF_HYSTERESIS, DEFAULT_HYSTERESIS),
         )
         individual.append(sensor)
 
@@ -74,8 +77,8 @@ class ShowerHumiditySensor(BinarySensorEntity):
                     while already ON), regardless of absolute value.
 
     After turning OFF, the sensor is re-armed only once humidity settles
-    back to or below the threshold, so the post-shower decay (still above
-    the threshold) cannot immediately switch it back ON.
+    back below `threshold - hysteresis`, so noisy readings hovering right
+    at the threshold cannot immediately switch it back ON (flapping).
     """
 
     _attr_device_class = BinarySensorDeviceClass.RUNNING
@@ -88,6 +91,7 @@ class ShowerHumiditySensor(BinarySensorEntity):
         humidity_sensor: str,
         threshold: float,
         decline_count: int,
+        hysteresis: float = 0.0,
     ) -> None:
         self._attr_unique_id = unique_id
         self.shower_name = name
@@ -95,6 +99,7 @@ class ShowerHumiditySensor(BinarySensorEntity):
         self._humidity_sensor = humidity_sensor
         self._threshold = threshold
         self._decline_count = decline_count
+        self._hysteresis = hysteresis
         self.aggregate: AnyShowerActiveSensor | None = None
 
         self._attr_is_on = False
@@ -138,8 +143,10 @@ class ShowerHumiditySensor(BinarySensorEntity):
         self._recent.append(humidity)
         self._last_humidity = humidity
 
-        # Re-arm once humidity has settled back to/below the threshold
-        if humidity <= self._threshold:
+        # Re-arm once humidity has settled comfortably below the threshold
+        # (not just barely under it) to avoid flapping on noisy readings
+        # that hover right at the threshold.
+        if humidity <= self._threshold - self._hysteresis:
             self._armed = True
 
         if not self._attr_is_on:
@@ -189,8 +196,10 @@ class ShowerHumiditySensor(BinarySensorEntity):
         return {
             "humidity_sensor": self._humidity_sensor,
             "threshold": self._threshold,
+            "hysteresis": self._hysteresis,
             "current_humidity": self._last_humidity,
             "decline_readings_required": self._decline_count,
+            "armed": self._armed,
         }
 
 

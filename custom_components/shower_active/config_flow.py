@@ -16,8 +16,10 @@ from .const import (
     CONF_NAME,
     CONF_THRESHOLD,
     CONF_DECLINE_COUNT,
+    CONF_HYSTERESIS,
     DEFAULT_THRESHOLD,
     DEFAULT_DECLINE_COUNT,
+    DEFAULT_HYSTERESIS,
 )
 
 
@@ -81,6 +83,7 @@ class ShowerActiveOptionsFlow(config_entries.OptionsFlow):
                 CONF_SENSOR: user_input[CONF_SENSOR],
                 CONF_THRESHOLD: user_input[CONF_THRESHOLD],
                 CONF_DECLINE_COUNT: user_input[CONF_DECLINE_COUNT],
+                CONF_HYSTERESIS: user_input[CONF_HYSTERESIS],
             })
             return await self.async_step_menu()
 
@@ -94,6 +97,9 @@ class ShowerActiveOptionsFlow(config_entries.OptionsFlow):
                 vol.Optional(CONF_THRESHOLD, default=DEFAULT_THRESHOLD): vol.Coerce(float),
                 vol.Optional(CONF_DECLINE_COUNT, default=DEFAULT_DECLINE_COUNT): vol.All(
                     vol.Coerce(int), vol.Range(min=1, max=10)
+                ),
+                vol.Optional(CONF_HYSTERESIS, default=DEFAULT_HYSTERESIS): vol.All(
+                    vol.Coerce(float), vol.Range(min=0, max=30)
                 ),
             }),
         )
@@ -131,6 +137,7 @@ class ShowerActiveOptionsFlow(config_entries.OptionsFlow):
                 CONF_SENSOR: user_input[CONF_SENSOR],
                 CONF_THRESHOLD: user_input[CONF_THRESHOLD],
                 CONF_DECLINE_COUNT: user_input[CONF_DECLINE_COUNT],
+                CONF_HYSTERESIS: user_input[CONF_HYSTERESIS],
             }
             self._showers = [
                 updated if self._shower_key(s) == self._edit_key else s
@@ -153,6 +160,10 @@ class ShowerActiveOptionsFlow(config_entries.OptionsFlow):
                     CONF_DECLINE_COUNT,
                     default=shower.get(CONF_DECLINE_COUNT, DEFAULT_DECLINE_COUNT),
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=10)),
+                vol.Optional(
+                    CONF_HYSTERESIS,
+                    default=shower.get(CONF_HYSTERESIS, DEFAULT_HYSTERESIS),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0, max=30)),
             }),
         )
 

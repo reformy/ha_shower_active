@@ -59,12 +59,15 @@ Choose **Add a shower** and fill in:
 - **Humidity sensor**: pick from your entities (filtered to `humidity` device class)
 - **Threshold**: humidity % to activate on (default `63`)
 - **Decline readings**: how many consecutive drops before turning off (default `2`)
+- **Hysteresis**: how many points humidity must drop *below* the threshold before the sensor is allowed to re-activate (default `5`)
+
+The hysteresis setting exists to stop flapping when humidity hovers right around the threshold — without it, a reading that dips just barely below the threshold (e.g. 62.5% with a 63% threshold) immediately re-arms the sensor, so the very next noisy reading above threshold flips it back ON, producing two ON/OFF cycles for what was really one shower. With the default of 5, the sensor won't re-arm until humidity drops to 58% or below, so a single shower session stays as a single ON/OFF cycle. Raise it if you still see flapping; lower it (toward 0) if showers feel slow to re-detect back-to-back.
 
 Repeat for as many showers as you like, then **Save and finish**.
 
 ### Edit a shower
 
-Choose **Edit a shower**, pick the shower, and the form opens pre-filled with its current settings — handy for tuning the threshold per bathroom. The entity and its history are preserved; only the settings change.
+Choose **Edit a shower**, pick the shower, and the form opens pre-filled with its current settings — handy for tuning the threshold or hysteresis per bathroom. The entity and its history are preserved; only the settings change.
 
 ### Remove a shower
 
@@ -76,8 +79,10 @@ Each individual sensor exposes:
 ```yaml
 humidity_sensor: sensor.second_floor_shower_humidity
 threshold: 63.0
+hysteresis: 5.0
 current_humidity: 71.4
 decline_readings_required: 2
+armed: true
 ```
 
 The aggregate sensor exposes:

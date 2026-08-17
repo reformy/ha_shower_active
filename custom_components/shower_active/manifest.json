@@ -1,7 +1,7 @@
 {
   "domain": "shower_active",
   "name": "Shower Active",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "documentation": "https://github.com/reformy/ha_shower_active",
   "issue_tracker": "https://github.com/reformy/ha_shower_active/issues",
   "dependencies": [],

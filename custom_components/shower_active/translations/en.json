@@ -28,7 +28,8 @@
           "name": "Shower name (e.g. Kids Shower)",
           "sensor": "Humidity sensor entity",
           "threshold": "Humidity threshold to activate (e.g. 63)",
-          "decline_count": "Consecutive declining readings to deactivate"
+          "decline_count": "Consecutive declining readings to deactivate",
+          "hysteresis": "Hysteresis: humidity must drop this many points below the threshold before it can re-activate (e.g. 5)"
         }
       },
       "edit_shower": {
@@ -43,7 +44,8 @@
           "name": "Shower name (e.g. Kids Shower)",
           "sensor": "Humidity sensor entity",
           "threshold": "Humidity threshold to activate (e.g. 63)",
-          "decline_count": "Consecutive declining readings to deactivate"
+          "decline_count": "Consecutive declining readings to deactivate",
+          "hysteresis": "Hysteresis: humidity must drop this many points below the threshold before it can re-activate (e.g. 5)"
         }
       },
       "remove_shower": {
