@@ -4,12 +4,21 @@ A Home Assistant custom integration that exposes `binary_sensor` entities indica
 
 ## How it works
 
-| Event | Trigger |
-|-------|---------|
-| **Shower starts** (ON) | Humidity rises **above the configured threshold** (default 63%) |
-| **Shower ends** (OFF) | Humidity begins to **decline** — N consecutive lower readings in a row (default 2), regardless of absolute value |
+A shower makes humidity jump fast, typically 15–25 points in 2–5 minutes. Weather moves it slowly, and on humid days a bathroom can sit above 70% all day with nobody in it. So detection is based on rises and peaks, not on a fixed humidity level.
 
-The "decline to turn off" logic means the sensor stays ON while humidity is still rising or plateauing after a shower, and flips OFF as soon as a sustained downward trend is detected — not waiting for it to drop back to some baseline.
+| Event | Rule (defaults) |
+|-------|-----------------|
+| **Shower starts** (ON) | A reading is **8+ points above the lowest reading of the last 20 minutes**, and at least **60%** |
+| **Shower ends** (OFF) | Whichever comes first: a reading **3+ points below the shower's peak**; **15 minutes with no new peak**; **60 minutes** after it turned on |
+
+- "No new peak" runs on a timer, so the shower ends even when the humidity sensor stops reporting. Battery sensors such as Aqara only report when the value changes, and go quiet when it's steady.
+- A reading within 1 point of the peak counts as still at the peak, so a saturated bathroom (steady ~90%) stays ON while the water runs.
+- After OFF, the next fast rise counts as a new shower straight away (only readings since the OFF count as the "lowest reading"), so back-to-back showers are both detected.
+- The ON state, start time and peak survive an HA restart.
+
+### Why not a fixed threshold (v1.3.0 and earlier)
+
+Up to v1.3.0 the sensor turned ON above a fixed level (63%) and OFF after 2 consecutive falling readings. With real Aqara data that failed three ways: humid weather alone crossed 63% and kept sensors ON for 90–110 minutes; noisy, sparse readings delayed the OFF by up to an hour after the shower ended; and after a false trigger the sensor waited for humidity to fall to 58% before it could trigger again, so real showers on humid days were missed. Replaying 10 days of data from three bathrooms, v1.4.0 cut total ON time from 1,566 to 889 minutes and caught the missed showers. Detection speed was unchanged: a median of under a minute after the first rising reading.
 
 ## Sensors created
 
@@ -57,17 +66,17 @@ Choose **Add a shower** and fill in:
 
 - **Name**: e.g. `Master` — creates `binary_sensor.master_shower_active` ("Master Shower Active")
 - **Humidity sensor**: pick from your entities (filtered to `humidity` device class)
-- **Threshold**: humidity % to activate on (default `63`)
-- **Decline readings**: how many consecutive drops before turning off (default `2`)
-- **Hysteresis**: how many points humidity must drop *below* the threshold before the sensor is allowed to re-activate (default `5`)
-
-The hysteresis setting exists to stop flapping when humidity hovers right around the threshold — without it, a reading that dips just barely below the threshold (e.g. 62.5% with a 63% threshold) immediately re-arms the sensor, so the very next noisy reading above threshold flips it back ON, producing two ON/OFF cycles for what was really one shower. With the default of 5, the sensor won't re-arm until humidity drops to 58% or below, so a single shower session stays as a single ON/OFF cycle. Raise it if you still see flapping; lower it (toward 0) if showers feel slow to re-detect back-to-back.
+- **Rise** (default `8`): points above the lowest reading of the last 20 minutes that mean a shower started. Lower it if gentle showers are missed; raise it if steam from a sink or the weather triggers it.
+- **Minimum humidity** (default `60`): never turn ON below this %, whatever the rise.
+- **Drop** (default `3`): points below the shower's peak that mean it ended.
+- **Quiet minutes** (default `15`): minutes with no new peak that mean it ended.
+- **Max minutes** (default `60`): always turn OFF this long after turning ON.
 
 Repeat for as many showers as you like, then **Save and finish**.
 
 ### Edit a shower
 
-Choose **Edit a shower**, pick the shower, and the form opens pre-filled with its current settings — handy for tuning the threshold or hysteresis per bathroom. The entity and its history are preserved; only the settings change.
+Choose **Edit a shower**, pick the shower, and the form opens pre-filled with its current settings — handy for tuning the settings per bathroom. The entity and its history are preserved; only the settings change.
 
 ### Remove a shower
 
@@ -78,11 +87,17 @@ Choose **Remove a shower** and pick the shower. Its entity is deleted on save (r
 Each individual sensor exposes:
 ```yaml
 humidity_sensor: sensor.second_floor_shower_humidity
-threshold: 63.0
-hysteresis: 5.0
-current_humidity: 71.4
-decline_readings_required: 2
-armed: true
+current_humidity: 86.7
+recent_low: null          # lowest reading of the last 20 min (while OFF)
+started_at: "2026-11-26T09:57:06+00:00"   # while ON
+peak: 91.6                                # while ON
+peak_at: "2026-11-26T10:37:12+00:00"      # while ON
+last_off_reason: drop     # drop, quiet, max or restart
+rise: 8.0
+min_humidity: 60.0
+drop: 3.0
+quiet_minutes: 15.0
+max_minutes: 60.0
 ```
 
 The aggregate sensor exposes:
@@ -107,4 +122,18 @@ automation:
       - action: script.ai_notify
         data:
           message: "Someone is showering — avoid running hot water in the kitchen"
+```
+
+## Upgrading from v1.3.0
+
+Nothing to do: existing showers keep their entities and history and get the new default settings. The old `threshold`, `decline_count` and `hysteresis` settings are ignored, and are removed the next time you edit that shower. The `armed` and `threshold`-related attributes are gone.
+
+## Development
+
+Tests run against real Home Assistant:
+
+```bash
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python pytest-homeassistant-custom-component
+.venv/bin/python -m pytest
 ```
