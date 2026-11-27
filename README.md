@@ -128,6 +128,10 @@ automation:
 
 Nothing to do: existing showers keep their entities and history and get the new default settings. The old `threshold`, `decline_count` and `hysteresis` settings are ignored, and are removed the next time you edit that shower. The `armed` and `threshold`-related attributes are gone.
 
+## Icon
+
+The integration ships its own icon in `custom_components/shower_active/brand/` (`icon.png` 256×256, `icon@2x.png` 512×512), which Home Assistant 2026.3 and later serve without the central brands repository. The source is `assets/icon.svg`.
+
 ## Development
 
 Tests run against real Home Assistant:
